@@ -1,4 +1,6 @@
 #include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include "MAX30100_PulseOximeter.h"
 
 /******************* MAX 30100 Section ***********************/
@@ -17,10 +19,21 @@ PulseOximeter pox;
 uint32_t tsLastReport = 0;
 /****************************************************************/
 
+/******************* Oled Section ***********************/
+void oled_init();
+
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, -1);
+
+/****************************************************************/
+
 void setup()
 {
   Serial.begin(115200);
   max_30100_init();
+  oled_init();
 }
  
 void loop()
@@ -39,6 +52,18 @@ void loop()
   
   tsLastReport = millis();
   }
+}
+
+void oled_init()
+{
+  Wire1.begin(33, 32); // SDA = GPIO33, SCL = GPIO32
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // Address 0x3C for 128x64
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.setCursor(0, 10);
+  display.setTextSize(1);
+  display.println("Hello, world!");
+  display.display();
 }
 
 void max_30100_init()
