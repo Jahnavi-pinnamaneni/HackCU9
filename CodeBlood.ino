@@ -2,6 +2,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "MAX30100_PulseOximeter.h"
+#include <WiFi.h>
+#include <HTTPClient.h>
 
 /******************* MAX 30100 Section ***********************/
 int bpm = 0;
@@ -32,11 +34,22 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire1, -1);
 
 /****************************************************************/
 
+/******************************WiFi Section**********************/
+const char* ssid = "Samsung";
+const char* password = "12345678";
+
+void call();
+void post(int p1, int p2);
+void led();
+void wifi_init();
+void update_cloud();
+/****************************************************************/
 void setup()
 {
   Serial.begin(115200);
   max_30100_init();
   oled_init();
+  wifi_init();
 }
  
 void loop()
@@ -59,13 +72,14 @@ void loop()
   }
 
   update_oled();
+  update_cloud();
 }
 
 void update_oled()
 {
   if (bpm == 0 || spo2==0)
     return;
-    
+
   display.clearDisplay();
   
   display.setTextSize(1);
@@ -121,4 +135,125 @@ void max_30100_init()
   // by uncommenting the following line. Check MAX30100_Registers.h for all the
   // available options.
   pox.setIRLedCurrent(MAX30100_LED_CURR_7_6MA);
+}
+
+void call() {
+
+    const char* serverName = "https://api.thingspeak.com/apps/thinghttp/send_request?api_key=ZQTEEL0S4RIUK90S";
+
+    //Check WiFi connection status
+    if(WiFi.status()== WL_CONNECTED){
+      WiFiClient client;
+      HTTPClient http;
+    
+      // Your Domain name with URL path or IP address with path
+      http.begin(serverName);
+
+      // api_key=(thinghttp_api_key)&number={phone_number_to_call}
+      // Specify content-type header
+      http.addHeader("Content-Type", "application/x-www-form-urlencoded");      
+      // Send HTTP POST request
+      int httpResponseCode = http.GET();
+      
+      /*
+      // If you need an HTTP request with a content type: application/json, use the following:
+      http.addHeader("Content-Type", "application/json");
+      // JSON data to send with HTTP POST
+      String httpRequestData = "{\"api_key\":\"" + apiKey + "\",\"field1\":\"" + String(random(40)) + "\"}";           
+      // Send HTTP POST request
+      int httpResponseCode = http.POST(httpRequestData);*/
+     
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpResponseCode);
+        
+      // Free resources
+      http.end();
+    }
+    else {
+      Serial.println("WiFi Disconnected");
+    }  
+}
+
+void post(int p1, int p2){
+  const char* serverName = "https://api.thingspeak.com/update?api_key=CV4RCEVWHA6GEWQ2";
+  if(WiFi.status()== WL_CONNECTED){
+      WiFiClient client;
+      HTTPClient http;
+    
+      // Your Domain name with URL path or IP address with path
+      http.begin(serverName);
+      
+      // Specify content-type header
+      http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+      // Data to send with HTTP POST
+      String httpRequestData = "&field1=" +String(p1) +"&field2=" + String(p2);           
+      // Send HTTP POST request00
+      int httpResponseCode = http.POST(httpRequestData);
+      
+      /*
+      // If you need an HTTP request with a content type: application/json, use the following:
+      http.addHeader("Content-Type", "application/json");
+      // JSON data to send with HTTP POST
+      String httpRequestData = "{\"api_key\":\"" + apiKey + "\",\"field1\":\"" + String(random(40)) + "\"}";           
+      // Send HTTP POST request
+      int httpResponseCode = http.POST(httpRequestData);*/
+     
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpResponseCode);
+        
+      // Free resources
+      http.end();
+      Serial.println("Exiting post");
+    }
+    else {
+      Serial.println("WiFi Disconnected");
+    }
+}
+
+void led(){
+    
+  if(WiFi.status()== WL_CONNECTED)
+    digitalWrite(2, HIGH);
+  else
+    digitalWrite(2, LOW);
+}
+void wifi_init()
+{
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  Serial.print("Initializing pulse oximeter..");
+  // Initialize sensor
+  if (!pox.begin()) {
+      Serial.println("FAILED");
+      for(;;);
+  } else {
+      Serial.println("SUCCESS");
+  }
+}
+
+void update_cloud()
+{
+  if(bpm == 0 || spo2 == 0)
+    return;
+  post(bpm, spo2);
+  //delay(2000);
+  
+  if(spo2 > 94 && spo2 < 100)
+  {
+    call();
+    delay(10000);
+    exit(1);
+  }
+  bpm = 0;
+  spo2 = 0;
+
+  Serial.println("Exiting update_cloud");
 }
